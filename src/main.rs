@@ -4,6 +4,8 @@ use std::fs;
 
 use anyhow::Result;
 use csv;
+use log::info;
+use log4rs;
 use promkit::crossterm::event::{Event, KeyCode, KeyEvent, KeyModifiers};
 use promkit::crossterm::style::ContentStyle;
 use promkit::grapheme::{trim, StyledGraphemes};
@@ -53,6 +55,7 @@ impl CsvRenderer {
         headers
             .iter_mut()
             .for_each(|cell| cell.max_width = Some(header_max_width));
+        info!("{:?}", headers);
 
         let mut rows = vec![];
 
@@ -73,6 +76,7 @@ impl CsvRenderer {
                 .for_each(|cell| cell.max_width = Some(max_width));
             rows.push(cells);
         }
+        info!("{:?}", rows);
 
         Self { headers, rows }
     }
@@ -152,6 +156,14 @@ impl Renderer for Viewer {
 impl_as_any!(Viewer);
 
 fn main() -> Result<()> {
+    match log4rs::init_file("log4rs.yml", Default::default()) {
+        Ok(config) => config,
+        Err(e) => {
+            eprintln!("Failed to initialize log4rs: {}", e);
+            panic!();
+        }
+    };
+
     let file = std::fs::File::open("sample.csv")?;
 
     let viewer = Viewer {
