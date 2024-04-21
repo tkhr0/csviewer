@@ -1,5 +1,6 @@
 use std::cmp;
 use std::collections::HashSet;
+use std::env;
 use std::fs;
 
 use anyhow::Result;
@@ -164,7 +165,7 @@ fn main() -> Result<()> {
         }
     };
 
-    let file = std::fs::File::open("sample.csv")?;
+    let file = std::fs::File::open(&(env::args().collect::<Vec<String>>())[1])?;
 
     let viewer = Viewer {
         query_editor_renderer: text_editor::Renderer {
