@@ -12,15 +12,17 @@ struct Cell {
     value: String,
     width: usize,
     max_width: Option<usize>, // other cell's max width
+    index: usize,
 }
 
 impl Cell {
-    fn new(value: &str) -> Self {
+    fn new(value: &str, index: usize) -> Self {
         let width = unicode_width::UnicodeWidthStr::width(value);
         Self {
             value: value.to_string(),
             width,
             max_width: None,
+            index,
         }
     }
 
@@ -32,6 +34,7 @@ impl Cell {
 pub struct CsvRenderer {
     headers: Vec<Cell>,
     rows: Vec<Vec<Cell>>,
+    selected_headers: Option<Vec<usize>>,
 }
 
 impl CsvRenderer {
@@ -41,8 +44,8 @@ impl CsvRenderer {
         let mut headers = vec![];
         let mut header_max_width = 0;
 
-        for header in reader.headers().unwrap() {
-            let cell = Cell::new(header);
+        for (i, header) in reader.headers().unwrap().iter().enumerate() {
+            let cell = Cell::new(header, i);
             header_max_width = cmp::max(header_max_width, cell.width());
             headers.push(cell);
         }
@@ -59,7 +62,7 @@ impl CsvRenderer {
             let mut max_width = 0;
 
             for (i, cell) in row.iter().enumerate() {
-                let cell = Cell::new(cell);
+                let cell = Cell::new(cell, i);
                 if let Some(header) = headers.get(i) {
                     max_width = cmp::max(max_width, header.width());
                 }
@@ -72,7 +75,23 @@ impl CsvRenderer {
         }
         info!("{:?}", rows);
 
-        Self { headers, rows }
+        Self {
+            headers,
+            rows,
+            selected_headers: Some(vec![0, 3, 5, 8]),
+        }
+    }
+
+    pub fn select_headers(&mut self, headers: Vec<&str>) {
+        let mut selected_headers = vec![];
+
+        for (i, header) in self.headers.iter().enumerate() {
+            if headers.contains(&header.value.as_str()) {
+                selected_headers.push(i);
+            }
+        }
+
+        self.selected_headers = Some(selected_headers);
     }
 }
 
@@ -95,11 +114,20 @@ impl Renderer for CsvRenderer {
             &StyledGraphemes::from_str(
                 self.headers
                     .iter()
-                    .map(|cell| {
+                    .enumerate()
+                    .map(|(i, cell)| {
+                        if let Some(select_headers) = &self.selected_headers {
+                            if !select_headers.contains(&i) {
+                                return None;
+                            }
+                        }
+
                         let width = cell.max_width.unwrap_or(0);
                         let padding = cmp::max(width, cell.width()) - cell.width();
-                        format!("{}{}", cell.value, " ".repeat(padding))
+                        Some(format!("{}{}", cell.value, " ".repeat(padding)))
                     })
+                    .filter(|cell| cell.is_some())
+                    .map(|cell| cell.unwrap())
                     .collect::<Vec<String>>()
                     .join(" | "),
                 ContentStyle::new(),
@@ -115,11 +143,20 @@ impl Renderer for CsvRenderer {
                         width as usize,
                         &StyledGraphemes::from_str(
                             row.iter()
-                                .map(|cell| {
+                                .enumerate()
+                                .map(|(i, cell)| {
+                                    if let Some(select_headers) = &self.selected_headers {
+                                        if !select_headers.contains(&i) {
+                                            return None;
+                                        }
+                                    }
+
                                     let width = cell.max_width.unwrap_or(0);
                                     let padding = cmp::max(width, cell.width()) - cell.width();
-                                    format!("{}{}", cell.value, " ".repeat(padding))
+                                    Some(format!("{}{}", cell.value, " ".repeat(padding)))
                                 })
+                                .filter(|cell| cell.is_some())
+                                .map(|cell| cell.unwrap())
                                 .collect::<Vec<String>>()
                                 .join(" | "),
                             ContentStyle::new(),
