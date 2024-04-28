@@ -7,14 +7,16 @@ use anyhow::Result;
 use csv;
 use log::info;
 use log4rs;
-use promkit::crossterm::event::{Event, KeyCode, KeyEvent, KeyModifiers};
+use promkit::crossterm::event::Event;
 use promkit::crossterm::style::ContentStyle;
 use promkit::grapheme::{trim, StyledGraphemes};
 use promkit::impl_as_any;
+use promkit::keymap::KeymapManager;
 use promkit::text_editor;
 use promkit::{Prompt, PromptSignal, Renderer};
 
 mod command;
+mod keymap;
 
 #[derive(Debug)]
 struct Cell {
@@ -145,6 +147,7 @@ impl Renderer for CsvRenderer {
 struct Viewer {
     query_editor_renderer: text_editor::Renderer,
     csv_renderer: CsvRenderer,
+    keymap: KeymapManager<Self>,
 }
 
 impl Renderer for Viewer {
@@ -183,6 +186,7 @@ fn main() -> Result<()> {
             lines: Some(1),
         },
         csv_renderer: CsvRenderer::new(file),
+        keymap: KeymapManager::new("default", keymap::default),
     };
 
     let mut prompt = Prompt::try_new(
@@ -191,20 +195,14 @@ fn main() -> Result<()> {
             move |event: &Event,
                   renderer: &mut Box<dyn Renderer + 'static>|
                   -> promkit::Result<PromptSignal> {
-                match event {
-                    Event::Key(key_event) => {
-                        if key_event == &KeyEvent::new(KeyCode::Char('c'), KeyModifiers::CONTROL) {
-                            return Ok(PromptSignal::Quit);
-                        } else {
-                            let viewer = renderer.as_any_mut().downcast_mut::<Viewer>().unwrap();
-                            viewer.query_editor_renderer.texteditor.insert('a');
-                            return Ok(PromptSignal::Continue);
-                        }
-                    }
-                    _ => {
-                        return Ok(PromptSignal::Continue);
-                    }
-                };
+                let viewer = renderer.as_any_mut().downcast_mut::<Viewer>().unwrap();
+
+                let signal = match viewer.keymap.get() {
+                    Some(f) => f(event, viewer),
+                    None => Ok(PromptSignal::Quit),
+                }?;
+
+                return Ok(signal);
             },
         ),
         |renderer: &(dyn Renderer + '_)| -> promkit::Result<String> {
