@@ -14,6 +14,8 @@ use promkit::impl_as_any;
 use promkit::text_editor;
 use promkit::{Prompt, PromptSignal, Renderer};
 
+mod command;
+
 #[derive(Debug)]
 struct Cell {
     value: String,
