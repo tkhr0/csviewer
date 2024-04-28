@@ -22,13 +22,24 @@ fn tokenizer(input: &str) -> Vec<Token> {
     let mut result = Vec::new();
 
     input.split_whitespace().for_each(|s| {
-        let mut input = s.split("=");
+        let mut draft_token = String::from("");
 
-        result.extend(vec![
-            Token::Ident(input.next().unwrap().to_string()),
-            Token::Equal,
-        ]);
-        result.extend(string_tokenizer(input.next().unwrap()));
+        for c in s.chars() {
+            match c {
+                '=' => {
+                    result.extend(vec![Token::Ident(draft_token.clone()), Token::Equal]);
+                    draft_token.clear();
+                }
+                ',' => {
+                    result.extend(vec![Token::String(draft_token.clone()), Token::Comma]);
+                    draft_token.clear();
+                }
+                _ => draft_token.push(c),
+            }
+        }
+        if !draft_token.is_empty() {
+            result.push(Token::String(draft_token.clone()));
+        }
     });
 
     result
@@ -109,6 +120,18 @@ mod tests {
         use super::*;
 
         #[test]
+        fn inputting() {
+            let expr: Vec<Token> = vec![Token::String("h".to_string())];
+            assert_eq!(expr, tokenizer("h"));
+        }
+
+        #[test]
+        fn inputting_with_equal() {
+            let expr = vec![Token::Ident("h".to_string()), Token::Equal];
+            assert_eq!(expr, tokenizer("h="));
+        }
+
+        #[test]
         fn single() {
             let expr = vec![
                 Token::Ident("hoge".to_string()),
@@ -147,6 +170,21 @@ mod tests {
     #[cfg(test)]
     mod parse {
         use super::*;
+
+        #[test]
+        fn inputting() {
+            let tokens = vec![Token::String("h".to_string())];
+            assert_eq!(
+                Err("Invalid token not match".to_string()),
+                parse_tokens(tokens)
+            );
+        }
+
+        #[test]
+        fn inputting_with_equal() {
+            let tokens = vec![Token::Ident("h".to_string()), Token::Equal];
+            assert_eq!(Err("Not found h".to_string()), parse_tokens(tokens));
+        }
 
         #[test]
         fn single() {
