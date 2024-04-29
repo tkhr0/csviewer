@@ -9,15 +9,16 @@ use promkit::impl_as_any;
 use promkit::keymap::KeymapManager;
 use promkit::text_editor;
 use promkit::{Prompt, PromptSignal, Renderer};
+use promkit::snapshot::Snapshot;
 
-mod command;
+pub mod command;
 mod csv_renderer;
 mod keymap;
 use csv_renderer::CsvRenderer;
 
 struct Viewer {
     query_editor_renderer: text_editor::Renderer,
-    csv_renderer: CsvRenderer,
+    csv_renderer: Snapshot<CsvRenderer>,
     keymap: KeymapManager<Self>,
 }
 

@@ -7,7 +7,7 @@ use promkit::crossterm::style::ContentStyle;
 use promkit::grapheme::{trim, StyledGraphemes};
 use promkit::Renderer;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct Cell {
     value: String,
     width: usize,
@@ -31,9 +31,11 @@ impl Cell {
     }
 }
 
+#[derive(Clone)]
 pub struct CsvRenderer {
     headers: Vec<Cell>,
     rows: Vec<Vec<Cell>>,
+    exprs: Vec<super::command::Expr>,
     selected_headers: Option<Vec<usize>>,
 }
 
@@ -79,19 +81,46 @@ impl CsvRenderer {
             headers,
             rows,
             selected_headers: Some(vec![0, 3, 5, 8]),
+            exprs: vec![],
         }
     }
 
-    pub fn select_headers(&mut self, headers: Vec<&str>) {
+    pub fn set_exprs(&mut self, exprs: Vec<super::command::Expr>) {
+        self.exprs = exprs;
+    }
+
+    pub fn select_headers(&mut self, headers: &Vec<String>) {
         let mut selected_headers = vec![];
 
         for (i, header) in self.headers.iter().enumerate() {
-            if headers.contains(&header.value.as_str()) {
+            if headers.contains(&header.value) {
                 selected_headers.push(i);
             }
         }
 
         self.selected_headers = Some(selected_headers);
+    }
+
+    fn apply_exprs(&mut self) {
+        for expr in &self.exprs {
+            match expr {
+                super::command::Expr::ColumnFilter(args) => {
+                    if let super::command::Expr::Args(args) = args.as_ref() {
+                        let headers = args
+                            .iter()
+                            .map(|arg| match arg {
+                                super::command::Expr::Arg(value) => Some(value),
+                                _ => None,
+                            })
+                            .filter(|arg| arg.is_some())
+                            .map(|arg| arg.unwrap().clone())
+                            .collect::<Vec<String>>();
+                        self.select_headers(&headers);
+                    }
+                }
+                _ => {}
+            }
+        }
     }
 }
 
@@ -107,6 +136,8 @@ impl promkit::AsAny for CsvRenderer {
 
 impl Renderer for CsvRenderer {
     fn create_panes(&self, width: u16) -> Vec<promkit::pane::Pane> {
+        self.apply_exprs();
+
         let mut body: Vec<StyledGraphemes> = vec![];
 
         body.push(trim(
